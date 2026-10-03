@@ -1,20 +1,12 @@
 # Builds the desktop app's installers. jpackage can only package for the OS it runs on,
-# so each platform is built on its own runner. Runs on pushes that touch the desktop app,
-# the engine or the build; can also be started from the Actions tab. Pushing a tag such as
-# v1.1.0 also attaches the files to a GitHub release.
+# so each platform is built on its own runner. Run it from the Actions tab, or push a
+# tag such as v1.0.0 to also attach the files to a GitHub release.
 name: Desktop builds
 
 on:
   workflow_dispatch:
   push:
-    branches: ["**"]
     tags: ["v*"]
-    paths:
-      - "desktop/**"
-      - "core/**"
-      - "gradle/**"
-      - "*.gradle.kts"
-      - ".github/workflows/desktop.yml"
 
 permissions:
   contents: write
