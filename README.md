@@ -1,6 +1,7 @@
 # Lexis — a StarDict reader for dense dictionaries
 
-Lexis is an Android app for reading StarDict dictionaries you supply yourself. It is
+Lexis is an app for Android and for desktop computers (Windows, macOS and Linux) for reading
+StarDict dictionaries you supply yourself. It is
 designed to work well with the most complex dictionaries: large historical dictionaries
 whose entries pack dozens of senses and thousands of quotations into a single article.
 Any StarDict dictionary (`x`, `h`, `m` types, `.dict` or `.dict.dz`, optional `.syn`) can
@@ -41,7 +42,59 @@ be added; the reader gets the most out of richly structured XDXF markup.
 * **Look up from other apps**: select text anywhere and choose *Lexis* from the selection
   toolbar, or share text to Lexis.
 
-## Building
+## Desktop app (Windows, macOS, Linux)
+
+The desktop app shares the dictionary engine and the article renderer with the Android app, laid
+out for a big screen:
+
+* **Search sidebar** on the left: type to get suggestions, use ↑/↓ and Enter to pick one; when the
+  box is empty it lists your lookup history (hover a row to remove it).
+* **Reader** on the right with back/forward (Alt+←/→, ⌘[/⌘] on a Mac, or the mouse's back and
+  forward buttons), find in entry (Ctrl+F), and a side panel with the **senses outline** and
+  **nearby words** (Ctrl+O toggles it).
+* Clicking a cross-reference opens it; clicking an abbreviation shows its expansion.
+* **Look up the clipboard** (Ctrl+Shift+V), text size (Ctrl+= / Ctrl+- / Ctrl+0), themes and the
+  other settings from the Android app; *Export word list…* saves an HTML or text file.
+* `Lexis <word>` on the command line opens straight to that word.
+
+Dictionaries are **indexed where they are**: *File → Dictionaries… → Add folder…* scans a folder
+(and its sub-folders) for `.ifo` + `.idx` + `.dict.dz` sets and builds a search index, without
+copying the files. Keep them in place afterwards; a dictionary whose files have moved is marked
+as missing. The index, history and settings live in the per-user data folder:
+`%APPDATA%\Lexis` on Windows, `~/Library/Application Support/Lexis` on macOS and
+`~/.local/share/lexis` on Linux (override with `-Dlexis.home=...`).
+
+### Building the desktop app
+
+Desktop builds need a full JDK 17+ that includes `jpackage` (Temurin, Zulu, or JetBrains
+Runtime; Android Studio's bundled `jbr` lacks `jpackage`, so use it only for running, not
+packaging).
+
+```bash
+./gradlew :desktop:run
+```
+
+runs it from source. Installers are made with
+
+```bash
+./gradlew :desktop:packageDistributionForCurrentOS
+```
+
+which writes `.msi` and `.exe` installers on Windows, a `.dmg` on macOS, and `.deb` + `.rpm`
+packages on Linux to `desktop/build/compose/binaries/main/`. Each bundles its own trimmed Java
+runtime, so users need nothing else installed. `jpackage` can only package for the OS it runs
+on; the **Desktop builds** GitHub Actions workflow (`.github/workflows/desktop.yml`) builds all
+three. Run it from the Actions tab, or push a `v*` tag to attach the installers to a release.
+The macOS build is not notarized, so the first launch needs right-click → *Open*.
+
+```bash
+./gradlew :desktop:crossPlatformJar
+```
+
+builds `desktop/build/dist/lexis-desktop-<version>-all.jar`, a single jar that runs on any of the
+three systems (Intel or ARM) where Java 17+ is installed: `java -jar lexis-desktop-1.0.0-all.jar`.
+
+## Building the Android app
 
 Requirements: an Android SDK with compileSdk 35 and a JDK 17 or newer (Android
 Studio's bundled JBR works; note that a JRE is not enough). The project uses
@@ -87,19 +140,23 @@ same key.
 ### Engine tests
 
 The dictionary engine (dictzip random access, `.idx`/`.syn` parsing, XDXF parser, exporter)
-is plain Kotlin with JUnit tests under `app/src/test`. They run as ordinary unit tests:
+is the plain Kotlin `core` module, with JUnit tests under `core/src/test`:
 
 ```bash
-./gradlew :app:testDebugUnitTest
+./gradlew :core:test
 ```
 
 `RealDictionaryTest` additionally exercises real StarDict files when the environment
 variable `DICT_DIR` points at a folder containing them (it is skipped otherwise).
 
-The fixtures under `app/src/test/resources` are synthetic: invented headwords and
+The fixtures under `core/src/test/resources` are synthetic: invented headwords and
 invented quotations, written to reproduce the markup conventions this parser handles
 (homographs, nested senses, citation runs, bracketed etymologies). No dictionary content
 is bundled with this project.
+
+`desktop/src/test/.../Screenshots.kt` is a visual smoke test for the desktop UI: with
+`DICT_DIR` and `LEXIS_SCREENSHOTS` (an output folder) set, `./gradlew :desktop:test` indexes the
+dictionaries into a scratch data folder and renders the main window offscreen to PNG files.
 
 ## Installing dictionaries on the phone
 
@@ -113,8 +170,7 @@ is bundled with this project.
 ## Project layout
 
 ```
-app/src/main/java/com/lexis/reader/
-  core/        pure-Kotlin engine (no Android imports)
+core/src/main/kotlin/com/lexis/reader/core/   pure-Kotlin engine shared by both apps
     DictReaders.kt     dictzip (.dict.dz) chunked random-access reader, plain .dict reader
     StarDict.kt        .ifo / .idx / .syn parsing, typed entry segments
     Xdxf.kt            inline markup tokenizer -> styled runs
@@ -122,9 +178,19 @@ app/src/main/java/com/lexis/reader/
     Article.kt         block model, outline, snippets
     Exporter.kt        HTML / plain-text export
     TextNormalizer.kt  search normalisation
+app/src/main/java/com/lexis/reader/            Android app
   data/        SQLite (dictionaries, words index, history), import, settings, export/share
   ui/          Jetpack Compose screens: Home, Entry (reader), Dictionaries, Settings, Export
+desktop/src/main/kotlin/com/lexis/desktop/     desktop app (Compose Multiplatform)
+  Main.kt      window, saved window bounds, command-line word
+  data/        SQLite via JDBC (same schema), in-place indexing, settings file, export
+  ui/          sidebar, reader pane, menu bar, dialogs; ArticleView/RichText mirror the Android ones
 ```
+
+The article renderer (`ArticleView.kt`, `RichText.kt`, the colour palettes) exists in both
+`app` and `desktop`, since Jetpack Compose and Compose Multiplatform builds can't share one source
+folder without converting the project to Kotlin Multiplatform. Keep the two copies in step when
+changing how entries look.
 
 ## License
 

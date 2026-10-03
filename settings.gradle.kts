@@ -13,4 +13,4 @@ dependencyResolutionManagement {
     }
 }
 rootProject.name = "lexis"
-include(":app")
+include(":core", ":app", ":desktop")
